@@ -14,7 +14,13 @@ import {
 } from "@/store/callStore";
 import type { Agent, Industry, IndustryId } from "../types/index";
 
-type TranscriptMessage = { role: "agent" | "user"; text: string; timestamp: number };
+// ── TranscriptMessage matches the store type exactly (includes `id`) ──
+type TranscriptMessage = {
+  role: "agent" | "user";
+  text: string;
+  timestamp: number;
+  id: string;
+};
 
 // ─── RETELL SINGLETON ────────────────────────────────────────────────
 let _retellClient: RetellWebClient | null = null;
@@ -350,11 +356,15 @@ async function runLiveCall(agent: Agent) {
           transcript?: { role: string; content: string }[];
         }) => {
           if (!update.transcript || update.transcript.length === 0) return;
+
+          // ── FIX: include `id` on every message so it matches TranscriptMessage ──
           const normalized: TranscriptMessage[] = update.transcript.map((entry, idx) => ({
             role: (entry.role === "agent" ? "agent" : "user") as "agent" | "user",
             text: entry.content,
             timestamp: stableTimestamp(idx),
+            id: `retell-${idx}`,
           }));
+
           useCallStore.setState({ transcript: normalized });
           const last = update.transcript[update.transcript.length - 1];
           useCallStore.getState().setStatus(last?.role === "user" ? "Processing..." : "Listening...");
@@ -381,7 +391,12 @@ async function runLiveCall(agent: Agent) {
   script.forEach((line, i) => {
     const statusIdx = Math.min(i + 1, statuses.length - 1);
     _liveTimeouts.push(setTimeout(() => {
-      store.appendTranscript({ ...line, timestamp: Date.now() });
+      // ── FIX: include `id` on every appended message ──
+      store.appendTranscript({
+        ...line,
+        timestamp: Date.now(),
+        id: `sim-${i}-${Date.now()}`,
+      });
       store.setStatus(line.role === "user" ? (statuses[statusIdx] ?? "Processing...") : "Listening...");
     }, delay));
     delay += line.role === "user" ? 1800 : 2600;
@@ -488,8 +503,8 @@ function Transcript({ messages }: { messages: TranscriptMessage[] }) {
         </div>
       )}
       {messages.map((msg) => (
-        // stable key = timestamp so React never re-mounts existing bubbles
-        <ChatBubble key={msg.timestamp} msg={msg} />
+        // stable key = id so React never re-mounts existing bubbles
+        <ChatBubble key={msg.id} msg={msg} />
       ))}
       <div ref={bottomRef} />
     </div>
