@@ -17,7 +17,6 @@ interface CallState {
   callStatus: string;
   phase: CallPhase;
   demoMode: boolean;
-
   startDemo: (agent: Agent) => void;
   startLiveCall: (agent: Agent) => Promise<void>;
   endCall: () => void;
