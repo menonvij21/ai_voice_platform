@@ -14,11 +14,21 @@ import {
 } from "@/store/callStore";
 import type { Agent, Industry, IndustryId } from "../types/index";
 
+// ─── TYPES ───────────────────────────────────────────────────────────
 type TranscriptMessage = { 
   role: "agent" | "user"; 
   text: string; 
   timestamp: number;
   id: string;
+};
+
+type WorkflowStep = { label: string; detail: string };
+type WorkflowPipeline = { industry: IndustryId; title: string; steps: WorkflowStep[] };
+type SimulationScript = { role: "agent" | "user"; text: string }[];
+
+type RetellTranscriptEntry = {
+  role: "agent" | "user";
+  content: string;
 };
 
 // ─── RETELL SINGLETON ────────────────────────────────────────────────
@@ -140,9 +150,6 @@ const agents: Agent[] = [
   },
 ];
 
-type WorkflowStep = { label: string; detail: string };
-type WorkflowPipeline = { industry: IndustryId; title: string; steps: WorkflowStep[] };
-
 const workflowPipelines: WorkflowPipeline[] = [
   {
     industry: "bfsi", title: "Fraud alert → resolution",
@@ -200,8 +207,6 @@ const workflowPipelines: WorkflowPipeline[] = [
     ],
   },
 ];
-
-type SimulationScript = { role: "agent" | "user"; text: string }[];
 
 const simulationScripts: Record<string, SimulationScript> = {
   bfsi: [
@@ -329,11 +334,6 @@ const industryStatusSequences: Record<string, string[]> = {
   ecommerce:   ["Listening...", "Retrieving order...", "Checking carrier status...", "Processing request...", "Confirming resolution..."],
 };
 
-type RetellTranscriptEntry = {
-  role: "agent" | "user";
-  content: string;
-};
-
 async function runLiveCall(agent: Agent) {
   if (useCallStore.getState().callActive || _callInProgress) {
     return;
@@ -433,11 +433,13 @@ async function runLiveCall(agent: Agent) {
       const statusIdx = Math.min(i + 1, statuses.length - 1);
       _liveTimeouts.push(setTimeout(() => {
         const timestamp = Date.now();
-        store.appendTranscript({
-          ...line,
+        const newMessage: TranscriptMessage = {
+          role: line.role,
+          text: line.text,
           timestamp,
           id: `sim-${messageId++}-${timestamp}`,
-        });
+        };
+        store.appendTranscript(newMessage);
         store.setStatus(
           line.role === "user" 
             ? (statuses[statusIdx] ?? "Processing...") 
@@ -611,13 +613,10 @@ const AgentCard = memo(function AgentCard({
   );
 });
 
-// ─── CHAT BUBBLE (FIXED) ─────────────────────────────────────────────
+// ─── CHAT BUBBLE (NO ANIMATION) ──────────────────────────────────────
 const ChatBubble = memo(function ChatBubble({ msg }: { msg: TranscriptMessage }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+    <div
       style={{ 
         display: "flex", 
         justifyContent: msg.role === "user" ? "flex-end" : "flex-start" 
@@ -625,11 +624,11 @@ const ChatBubble = memo(function ChatBubble({ msg }: { msg: TranscriptMessage })
     >
       <span className="sr-only">{msg.role === "user" ? "You" : "Agent"}:</span>
       <div className={"bubble bubble--" + msg.role}>{msg.text}</div>
-    </motion.div>
+    </div>
   );
 });
 
-// ─── TRANSCRIPT (FIXED) ──────────────────────────────────────────────
+// ─── TRANSCRIPT ──────────────────────────────────────────────────────
 function Transcript({ messages }: { messages: TranscriptMessage[] }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLenRef = useRef(0);
